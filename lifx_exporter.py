@@ -9,7 +9,7 @@ from functools import partial
 from prometheus_client import start_http_server, Gauge
 import aiolifx as alix
 
-UDP_BROADCAST_PORT = 56700
+UDP_BROADCAST_PORT = 56701
 
 standard_labels = ['name', 'location', 'group', 'type']
 
@@ -18,6 +18,10 @@ bulb_hue = Gauge('lifx_bulb_hue', 'Hue of light bulb', standard_labels)
 bulb_saturation = Gauge('lifx_bulb_saturation', 'Saturation of light bulb', standard_labels)
 bulb_brightness = Gauge('lifx_bulb_brightness', 'Brightness of light bulb', standard_labels)
 bulb_kelvin = Gauge('lifx_bulb_kelvin', 'Colour temperature of light bulb', standard_labels)
+
+bulb_wifi_signal = Gauge('lifx_bulb_wifi_signal', 'Wifi Signal of light bulb', standard_labels)
+bulb_wifi_tx = Gauge('lifx_bulb_wifi_tx', 'Wifi tx of light bulb', standard_labels)
+bulb_wifi_rx = Gauge('lifx_bulb_wifi_rx', 'Wifi rx of light bulb', standard_labels)
 
 
 class Bulbs():
@@ -53,6 +57,8 @@ def update_bulbs(my_bulbs):
         for bulb in my_bulbs.bulbs:
             colour_callback = partial(update_metrics)
             bulb.get_color(callb=colour_callback)
+            wifi_callback = partial(update_wifi_metrics)
+            bulb.get_wifiinfo(callb=wifi_callback)
         yield from aio.sleep(5)
 
 
@@ -81,6 +87,28 @@ def update_metrics(bulb, resp):
     bulb_saturation.labels(*label_values).set(resp.color[1])
     bulb_brightness.labels(*label_values).set(resp.color[2])
     bulb_kelvin.labels(*label_values).set(resp.color[3])
+
+def update_wifi_metrics(bulb, resp):
+    """Given a callback from a colour request, update some metrics"""
+
+    # Because I only own one kind of bulb, sorry
+    if bulb.product == 27:
+        product = 'LIFX A19'
+    else:
+        product = bulb.product
+
+    label_values = [bulb.label, bulb.location, bulb.group, product]
+
+    # If we haven't got anything, set the values to -1 to make this obvious
+    if not resp:
+        bulb_wifi_signal.labels(*label_values).set(-1)
+        bulb_wifi_tx.labels(*label_values).set(-1)
+        bulb_wifi_rx.labels(*label_values).set(-1)
+        return
+
+    bulb_wifi_signal.labels(*label_values).set(resp.signal)
+    bulb_wifi_tx.labels(*label_values).set(resp.tx)
+    bulb_wifi_rx.labels(*label_values).set(resp.rx)
 
 
 def main():
