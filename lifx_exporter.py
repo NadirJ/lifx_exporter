@@ -65,11 +65,7 @@ def update_bulbs(my_bulbs):
 def update_metrics(bulb, resp):
     """Given a callback from a colour request, update some metrics"""
 
-    # Because I only own one kind of bulb, sorry
-    if bulb.product == 27:
-        product = 'LIFX A19'
-    else:
-        product = bulb.product
+    product = alix.products.product_map[bulb.product]
 
     label_values = [bulb.label, bulb.location, bulb.group, product]
 
@@ -91,12 +87,8 @@ def update_metrics(bulb, resp):
 def update_wifi_metrics(bulb, resp):
     """Given a callback from a colour request, update some metrics"""
 
-    # Because I only own one kind of bulb, sorry
-    if bulb.product == 27:
-        product = 'LIFX A19'
-    else:
-        product = bulb.product
-
+    product = alix.products.product_map[bulb.product]
+    
     label_values = [bulb.label, bulb.location, bulb.group, product]
 
     # If we haven't got anything, set the values to -1 to make this obvious
