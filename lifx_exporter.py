@@ -3,7 +3,7 @@
 
 import argparse
 import sys
-import asyncio as aio
+import asyncio 
 from functools import partial
 
 from prometheus_client import start_http_server, Gauge
@@ -50,8 +50,8 @@ class Bulbs():
             idx += 1
 
 
-@aio.coroutine
-def update_bulbs(my_bulbs):
+
+async def update_bulbs(my_bulbs):
     """Update the status of our bulbs"""
     while True:
         for bulb in my_bulbs.bulbs:
@@ -59,14 +59,23 @@ def update_bulbs(my_bulbs):
             bulb.get_color(callb=colour_callback)
             wifi_callback = partial(update_wifi_metrics)
             bulb.get_wifiinfo(callb=wifi_callback)
-        yield from aio.sleep(5)
+        await asyncio.sleep(5)
 
 
 def update_metrics(bulb, resp):
     """Given a callback from a colour request, update some metrics"""
 
+    if not bulb:
+        return
+    
+    if not bulb.product:
+        return
+
     product = alix.products.product_map[bulb.product]
 
+    if not product:
+        return 
+    
     label_values = [bulb.label, bulb.location, bulb.group, product]
 
     # If we haven't got anything, set the values to -1 to make this obvious
@@ -87,7 +96,16 @@ def update_metrics(bulb, resp):
 def update_wifi_metrics(bulb, resp):
     """Given a callback from a colour request, update some metrics"""
 
+    if not bulb:
+        return
+    
+    if not bulb.product:
+        return
+
     product = alix.products.product_map[bulb.product]
+
+    if not product:
+        return 
     
     label_values = [bulb.label, bulb.location, bulb.group, product]
 
@@ -97,7 +115,15 @@ def update_wifi_metrics(bulb, resp):
         bulb_wifi_tx.labels(*label_values).set(-1)
         bulb_wifi_rx.labels(*label_values).set(-1)
         return
+    
 
+    if not resp.signal:
+       bulb_wifi_signal.labels(*label_values).set(-1)
+       bulb_wifi_tx.labels(*label_values).set(-1)
+       bulb_wifi_rx.labels(*label_values).set(-1)
+       return
+   
+        
     bulb_wifi_signal.labels(*label_values).set(resp.signal)
     bulb_wifi_tx.labels(*label_values).set(resp.tx)
     bulb_wifi_rx.labels(*label_values).set(resp.rx)
@@ -107,19 +133,19 @@ def main():
     """Do stuff with things."""
     parser = argparse.ArgumentParser(description='Expose LIFX bulb metrics')
     parser.add_argument('--port', type=int, nargs='?', help='Port to listen on',
-                        default=8564)
+                        default=8565)
     args = parser.parse_args()
 
     start_http_server(args.port)
 
     my_bulbs = Bulbs()
-    loop = aio.get_event_loop()
+    loop = asyncio.get_event_loop()
     coro = loop.create_datagram_endpoint(
         partial(alix.LifxDiscovery, loop, my_bulbs),
         local_addr=('0.0.0.0', UDP_BROADCAST_PORT))
 
     loop.create_task(coro)
-    aio.Task(update_bulbs(my_bulbs))
+    asyncio.Task(update_bulbs(my_bulbs))
 
     loop.run_forever()
 
